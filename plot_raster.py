@@ -60,7 +60,7 @@ for start, stop in zip(start_timestamps, stop_timestamps):
             filtered_spikes = spks[(spks >= interval_start) & (spks <= interval_stop)]
             filtered_spike_timestamps[freq][channel_id].extend(filtered_spikes - interval_start)  # Align to interval start
 
-bin_width_sec = 10000
+bin_width_sec = int(input("Input bin width: "))
 cmap_name = 'PuRd'
 cmap = get_cmap(cmap_name)
 

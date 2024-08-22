@@ -54,7 +54,7 @@ def plot_waveforms(cutouts, fs, pre, post, n=100, color='k', show=True):
         plt.show()
 
 def process_channel(file, channel_id):
-    electrode_stream = file.recordings[0].analog_streams[0]
+    electrode_stream = file.recordings[0].analog_streams[1]
     timestamp_stream = file.recordings[0].timestamp_streams[0]
 
     if channel_id in timestamp_stream.timestamp_entity:
