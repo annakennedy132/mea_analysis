@@ -63,9 +63,9 @@ filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in selected_ch
 
 # Iterate over each start and stop interval in the repeated sequence
 for i, (start, stop, freq) in enumerate(zip(start_timestamps, stop_timestamps, stimulus_frequencies)):
-    stimulus_duration = stop - start
+    stimulus_duration = 10000000
     interval_start = start
-    interval_stop = start + stimulus_duration
+    interval_stop = start + 10000000
 
     # Calculate the correct cycle offset
     cycle_number = i // len(unique_frequencies)
