@@ -51,15 +51,8 @@ unique_frequencies = [1, 2, 5, 10, 20, 30]
 channel_ids = list(timestamp_stream.timestamp_entity.keys())
 channel_labels = [f'Channel {ch}' for ch in channel_ids]
 
-# Allow user to select the range of channels to plot
-channel_start = int(input("Enter the starting channel ID: "))
-channel_end = int(input("Enter the ending channel ID: "))
-
-# Filter the channels based on user selection
-selected_channels = [ch for ch in channel_ids if channel_start <= ch <= channel_end]
-
 # Extract and stitch together spike timestamps for each frequency
-filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in selected_channels} for freq in unique_frequencies}
+filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in channel_ids} for freq in unique_frequencies}
 
 # Iterate over each start and stop interval in the repeated sequence
 for i, (start, stop, freq) in enumerate(zip(start_timestamps, stop_timestamps, stimulus_frequencies)):
@@ -72,7 +65,7 @@ for i, (start, stop, freq) in enumerate(zip(start_timestamps, stop_timestamps, s
     time_offset = cycle_number * stimulus_duration
 
     # Filter spikes for each selected channel within the time window
-    for channel_id in selected_channels:
+    for channel_id in channel_ids:
         timestamp_entity = timestamp_stream.timestamp_entity[channel_id]
         timestamps, _ = timestamp_entity.get_timestamps()
         spks = np.array(timestamps, dtype=float)
@@ -87,11 +80,13 @@ output_directory = os.path.dirname(file_path)
 title = os.path.basename(output_directory)
 output_pdf_path = os.path.join(output_directory, f'{title}_plots.pdf')
 
-# Open a PDF file to save all subsequent plots
-with PdfPages(output_pdf_path) as pdf:
+# Initialize a variable to store the active channels from the first frequency
+first_active_channels = None
 
+with PdfPages(output_pdf_path) as pdf:
+    
     ### Part 1: Raster Plot Analysis
-    for freq, spikes_for_freq in filtered_spike_timestamps.items():
+    for freq_idx, (freq, spikes_for_freq) in enumerate(filtered_spike_timestamps.items()):
         plt.figure(figsize=(12, 8), dpi=150)
 
         # Compute global maximum spike density across all channels for normalization
@@ -101,9 +96,11 @@ with PdfPages(output_pdf_path) as pdf:
         cmap_name = "PuRd"
         cmap = get_cmap(cmap_name)
 
+        # Find the maximum spike time across channels for this frequency
         for spikes in spikes_for_freq.values():
-            if len(spikes) > 0:
+            if len(spikes) > 200 and len(spikes) < 2000:
                 max_spike_time = max(max_spike_time, np.max(spikes))
+
         if max_spike_time > 0:
             bin_edges = np.arange(0, max_spike_time + bin_width_us, bin_width_us)
             for spikes in spikes_for_freq.values():
@@ -118,8 +115,15 @@ with PdfPages(output_pdf_path) as pdf:
         sm = ScalarMappable(cmap=cmap_name, norm=norm)
         sm.set_array([])
 
+        # If this is the first frequency, store the active channels
+        if freq_idx == 0:
+            # Extract active channels based on spike count conditions
+            first_active_channels = {ch: spikes for ch, spikes in spikes_for_freq.items() if len(spikes) > 10 and len(spikes) < 2000}
+
+        # For all frequencies, use the active channels from the first frequency
+        active_channels = {ch: spikes_for_freq[ch] for ch in first_active_channels.keys() if ch in spikes_for_freq}
+
         # Plot the raster plot for this frequency
-        active_channels = {ch: spikes for ch, spikes in spikes_for_freq.items() if len(spikes) > 0}
         for ch_idx, (channel, spikes) in enumerate(active_channels.items()):
             if len(spikes) > 0:
                 hist, bin_edges = np.histogram(spikes, bins=bin_edges)
@@ -142,6 +146,7 @@ with PdfPages(output_pdf_path) as pdf:
         plt.tight_layout()
         pdf.savefig()  # Save the figure to the PDF
         plt.close()
+
 
     ### Part 2: Fourier Transform Analysis
 
@@ -224,7 +229,6 @@ with PdfPages(output_pdf_path) as pdf:
 
     plt.figure(figsize=(7,4))
     plt.scatter(unique_frequencies, power, color='darkblue')
-    plt.ylim(0, max(average_fts))
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Amplitude')
     plt.title('Scatter Plot of Amplitudes at Each Stimulus Frequency')
@@ -235,7 +239,7 @@ with PdfPages(output_pdf_path) as pdf:
 
     # Calculate baseline firing rate for each channel
     baseline_rates_per_channel = []
-    for channel_id in selected_channels:
+    for channel_id in channel_ids:
         baseline_spikes = []
         baseline_total_duration = 0
         
@@ -260,7 +264,7 @@ with PdfPages(output_pdf_path) as pdf:
     # Calculate firing rates during each stimulus frequency for each channel
     firing_rates_per_channel = {freq: [] for freq in unique_frequencies}
     for freq in unique_frequencies:
-        for channel_id in selected_channels:
+        for channel_id in channel_ids:
             spikes = filtered_spike_timestamps[freq][channel_id]
             
             # The duration is calculated for each frequency by considering the stimulus time across all cycles
