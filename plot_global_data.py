@@ -56,9 +56,9 @@ filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in channel_ids
 
 # Iterate over each start and stop interval in the repeated sequence
 for i, (start, stop, freq) in enumerate(zip(start_timestamps, stop_timestamps, stimulus_frequencies)):
-    stimulus_duration = 10000000
+    stimulus_duration = stop - start
     interval_start = start
-    interval_stop = start + 10000000
+    interval_stop = start + stimulus_duration
 
     # Calculate the correct cycle offset
     cycle_number = i // len(unique_frequencies)
@@ -157,7 +157,7 @@ with PdfPages(output_pdf_path) as pdf:
 
     power = []
 
-    freq_range = 0.5  # ±0.5 Hz range around each target frequency
+    freq_range = 1  # ±0.5 Hz range around each target frequency
 
     for freq in unique_frequencies:
         summed_fts = None
