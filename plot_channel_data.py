@@ -74,8 +74,8 @@ with PdfPages(output_pdf_path) as pdf:
 
     for i, (start, stop, freq) in enumerate(zip(start_timestamps[:6], stop_timestamps[:6], stimulus_frequencies)):
         # Convert the start and stop times from microseconds to sample indices
-        start_sample = int((start / 1e6) * sampling_frequency)
-        stop_sample = int((stop / 1e6) * sampling_frequency)
+        start_sample = int(((start - 1e6) / 1e6) * sampling_frequency)  # Include 1s before stimulus
+        stop_sample = int(((stop + 1e6) / 1e6) * sampling_frequency)    # Include 1s after stimulus
 
         # Extract the raw data segment
         raw_data_segment = channel_data[start_sample:stop_sample]
@@ -83,8 +83,8 @@ with PdfPages(output_pdf_path) as pdf:
         # Create a subplot for this stimulus
         ax = plt.subplot(6, 1, i + 1)
 
-        # Plot the raw data in black
-        time_axis = np.linspace(0, (stop - start) / 1e6, len(raw_data_segment))  # Time in seconds
+        # Plot the raw data
+        time_axis = np.linspace(-1, (stop - start) / 1e6 + 1, len(raw_data_segment))  # Time in seconds from -1 to 11
         ax.plot(time_axis, raw_data_segment, color='slategrey')
 
         # Remove axis lines and ticks, except for the last plot
