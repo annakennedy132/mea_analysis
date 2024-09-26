@@ -34,12 +34,23 @@ start_event_id = 3
 stop_event_id = 4
 
 # Extract timestamps for the start and stop events
-start_event_entity = event_stream.event_entity[start_event_id]
+'''start_event_entity = event_stream.event_entity[start_event_id]
 stop_event_entity = event_stream.event_entity[stop_event_id]
 start_timestamps, _ = start_event_entity.get_event_timestamps()
 stop_timestamps, _ = stop_event_entity.get_event_timestamps()
 durations = stop_timestamps - start_timestamps
+'''
+start_timestamps = np.array([10000100, 30000100, 50000100, 70000100, 90000100, 110000100, 
+                             130000100, 150000100, 170000100, 190000100, 210000100, 
+                             230000100, 250000100, 270000100, 290000100, 310000100, 
+                             330000100, 350000100])
+stop_timestamps = np.array([20000000, 40000000, 60000000, 80000000, 100000000, 
+                            120000000, 140000000, 160000000, 180000000, 200000000, 
+                            220000000, 240000000, 260000000, 280000000, 300000000, 
+                            320000000, 340000000, 360000000])
+durations = stop_timestamps - start_timestamps
 
+# Print the start, stop times, and durations for confirmation
 print("Start Times (µs):", start_timestamps)
 print("End Times (µs):", stop_timestamps)
 print("Durations (µs):", durations)
@@ -54,8 +65,11 @@ channel_labels = [f'Channel {ch}' for ch in channel_ids]
 # Extract and stitch together spike timestamps for each frequency
 filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in channel_ids} for freq in unique_frequencies}
 
+stimuli_count = {freq: 0 for freq in unique_frequencies}
+
 # Iterate over each start and stop interval in the repeated sequence
 for i, (start, stop, freq) in enumerate(zip(start_timestamps, stop_timestamps, stimulus_frequencies)):
+
     stimulus_duration = stop - start
     interval_start = start
     interval_stop = start + stimulus_duration
@@ -147,7 +161,6 @@ with PdfPages(output_pdf_path) as pdf:
         pdf.savefig()  # Save the figure to the PDF
         plt.close()
 
-
     ### Part 2: Fourier Transform Analysis
 
     sampling_interval_us = 100  # 100 microseconds
@@ -157,7 +170,7 @@ with PdfPages(output_pdf_path) as pdf:
 
     power = []
 
-    freq_range = 1  # ±0.5 Hz range around each target frequency
+    freq_range = 0.5  # ±0.5 Hz range around each target frequency
 
     for freq in unique_frequencies:
         summed_fts = None
