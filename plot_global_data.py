@@ -4,11 +4,13 @@ import McsPy
 import McsPy.McsData
 from pint import UnitRegistry
 import matplotlib.pyplot as plt
-from scipy.fft import fft, fftfreq
+
 import warnings
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable, get_cmap
 from matplotlib.backends.backend_pdf import PdfPages
+
+from utils import files, fourier
 
 warnings.filterwarnings('ignore')
 
@@ -16,12 +18,6 @@ warnings.filterwarnings('ignore')
 ureg = UnitRegistry()
 Q_ = ureg.Quantity
 ureg.define('NoUnit = [quantity]')
-
-def compute_fourier(spike_train, sampling_rate):
-    n = len(spike_train)
-    yf = fft(spike_train)
-    xf = fftfreq(n, 1 / sampling_rate)[:n // 2]
-    return xf, 2.0 / n * np.abs(yf[:n // 2])
 
 # Load the H5 file
 file_path = input("Input file path: ")
@@ -132,7 +128,7 @@ with PdfPages(output_pdf_path) as pdf:
         # If this is the first frequency, store the active channels
         if freq_idx == 0:
             # Extract active channels based on spike count conditions
-            first_active_channels = {ch: spikes for ch, spikes in spikes_for_freq.items() if len(spikes) > 10 and len(spikes) < 2000}
+            first_active_channels = {ch: spikes for ch, spikes in spikes_for_freq.items() if len(spikes) > 100 and len(spikes) < 2000}
 
         # For all frequencies, use the active channels from the first frequency
         active_channels = {ch: spikes_for_freq[ch] for ch in first_active_channels.keys() if ch in spikes_for_freq}
@@ -190,7 +186,7 @@ with PdfPages(output_pdf_path) as pdf:
             spike_train[spike_indices] = 1
 
             # Compute Fourier Transform with no padding
-            freqs, fts = compute_fourier(spike_train, sampling_rate)
+            freqs, fts = fourier.compute_fourier(spike_train, sampling_rate)
 
             # Limit to frequencies up to 50 Hz
             freq_mask = freqs <= 50
@@ -309,5 +305,15 @@ with PdfPages(output_pdf_path) as pdf:
     plt.legend()
     pdf.savefig()
     plt.close()
+
+output_directory = os.path.dirname(file_path)
+csv_file_path = os.path.join(output_directory, f'{title}.csv')
+baseline_rate_mean = np.mean(baseline_rates_per_channel)
+stimulus_rates_means = [np.mean(firing_rates_per_channel[freq]) for freq in unique_frequencies]
+csv_data = [['Baseline', baseline_rate_mean, None]]
+for freq, rate, power in zip(unique_frequencies, stimulus_rates_means, power):
+    csv_data.append([f'{freq} Hz', rate, power])
+
+files.create_csv(csv_data, csv_file_path)
 
 print(f"All plots saved to {output_pdf_path}.")
