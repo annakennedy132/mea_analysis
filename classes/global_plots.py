@@ -2,9 +2,7 @@ import os
 import numpy as np
 import McsPy
 import McsPy.McsData
-from pint import UnitRegistry
 import matplotlib.pyplot as plt
-import warnings
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable, get_cmap
 
@@ -29,7 +27,6 @@ class GlobalPlots:
         title = os.path.basename(self.output_directory)
         self.output_pdf_path = os.path.join(self.output_directory, f'{title}_plots.pdf')
 
-        self.first_active_channels = None
         self.figs = []
         self.save_figs = save_figs
 
@@ -43,20 +40,10 @@ class GlobalPlots:
 
         start_event_id = 3
         stop_event_id = 4
-        '''start_event_entity = self.event_stream.event_entity[start_event_id]
+        start_event_entity = self.event_stream.event_entity[start_event_id]
         stop_event_entity = self.event_stream.event_entity[stop_event_id]
-        start_timestamps, _ = start_event_entity.get_event_timestamps()
-        stop_timestamps, _ = stop_event_entity.get_event_timestamps()
-        durations = stop_timestamps - start_timestamps'''
-
-        self.start_timestamps = np.array([10000100, 30000100, 50000100, 70000100, 90000100, 110000100, 
-                             130000100, 150000100, 170000100, 190000100, 210000100, 
-                             230000100, 250000100, 270000100, 290000100, 310000100, 
-                             330000100, 350000100])
-        self.stop_timestamps = np.array([20000000, 40000000, 60000000, 80000000, 100000000, 
-                                    120000000, 140000000, 160000000, 180000000, 200000000, 
-                                    220000000, 240000000, 260000000, 280000000, 300000000, 
-                                    320000000, 340000000, 360000000])
+        self.start_timestamps, _ = start_event_entity.get_event_timestamps()
+        self.stop_timestamps, _ = stop_event_entity.get_event_timestamps()
         durations = self.stop_timestamps - self.start_timestamps
 
         print("Start Times (µs):", self.start_timestamps)
@@ -149,6 +136,8 @@ class GlobalPlots:
             ax.set_yticks(np.arange(len(active_channels)))
             ax.set_yticklabels([f'{ch}' for ch in active_channels.keys()], fontsize=4)
             plt.tight_layout()
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
             self.figs.append(fig)
             plt.close(fig)
 
@@ -217,7 +206,10 @@ class GlobalPlots:
                 ax.set_xlabel('Frequency (Hz)')
                 ax.set_ylabel('Amplitude')
                 ax.set_title(f'Averaged Fourier Transform for Stimulus Frequency {freq} Hz')
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
                 self.figs.append(fig)
+                plt.show()
                 plt.close(fig)
                 
     def plot_power(self):
@@ -225,7 +217,10 @@ class GlobalPlots:
         ax.scatter(self.unique_frequencies, self.power, color='darkblue')
         ax.set_xlabel('Frequency (Hz)')
         ax.set_ylabel('Amplitude')
-        ax.set_title('Scatter Plot of Amplitudes at Each Stimulus Frequency')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_ylim(bottom=0)
+        ax.set_title('power plot')
         self.figs.append(fig)
         plt.close(fig)
 
@@ -284,6 +279,9 @@ class GlobalPlots:
         ax.set_xlabel('Stimulus Frequency')
         ax.set_ylabel('Firing Rate (Hz)')
         ax.set_title('Firing Rates')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_ylim(bottom=0)
         self.figs.append(fig)
         plt.close(fig)
 

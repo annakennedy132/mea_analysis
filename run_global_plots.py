@@ -1,4 +1,3 @@
-import sys
 from classes.global_plots import GlobalPlots
 
 def run():
