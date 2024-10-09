@@ -7,14 +7,19 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable, get_cmap
 
 from utils import fourier, files
+import csv
 
 class GlobalPlots:
     
-    def __init__(self, file, save_figs=False):
+    def __init__(self, file, experiment, group, light_level, save_figs=False):
         self.file_path = file
         self.file = McsPy.McsData.RawData(self.file_path)
         self.timestamp_stream = self.file.recordings[0].timestamp_streams[0]
         self.event_stream = self.file.recordings[0].event_streams[0]
+
+        self.experiment = experiment
+        self.group = group
+        self.light_level = light_level
 
         frequency_repeats = 3
         self.stimulus_frequencies = [1, 2, 5, 10, 20, 30] * frequency_repeats
@@ -26,6 +31,7 @@ class GlobalPlots:
         self.output_directory = os.path.dirname(self.file_path)
         title = os.path.basename(self.output_directory)
         self.output_pdf_path = os.path.join(self.output_directory, f'{title}_plots.pdf')
+        self.global_output_path = r"C:\Users\Windows\Documents\Multi Channel Systems\Multi Channel Analyzer\global_data.csv"
 
         self.figs = []
         self.save_figs = save_figs
@@ -44,11 +50,11 @@ class GlobalPlots:
         stop_event_entity = self.event_stream.event_entity[stop_event_id]
         self.start_timestamps, _ = start_event_entity.get_event_timestamps()
         self.stop_timestamps, _ = stop_event_entity.get_event_timestamps()
-        durations = self.stop_timestamps - self.start_timestamps
+        self.durations = self.stop_timestamps - self.start_timestamps
 
         print("Start Times (µs):", self.start_timestamps)
         print("End Times (µs):", self.stop_timestamps)
-        print("Durations (µs):", durations)
+        print("Durations (µs):", self.durations)
 
         # Extract and stitch together spike timestamps for each frequency
         self.filtered_spike_timestamps = {freq: {channel_id: [] for channel_id in self.channel_ids} for freq in self.unique_frequencies}
@@ -93,7 +99,7 @@ class GlobalPlots:
 
             # Find the maximum spike time across channels for this frequency
             for spikes in spikes_for_freq.values():
-                if len(spikes) > 200 and len(spikes) < 2000:
+                if len(spikes) > 50:
                     max_spike_time = max(max_spike_time, np.max(spikes))
 
             if max_spike_time > 0:
@@ -112,8 +118,9 @@ class GlobalPlots:
             # If this is the first frequency, store the active channels
             if freq_idx == 0:
                 first_active_channels = {ch: spikes for ch, spikes in spikes_for_freq.items() 
-                                        if len(spikes) > 100 and len(spikes) < 2000 and ch not in exclude_channels}
+                                        if len(spikes) > 50 and ch not in exclude_channels}
             # For all frequencies, use the active channels from the first frequency
+            
             active_channels = {ch: spikes_for_freq[ch] for ch in first_active_channels.keys() if ch in spikes_for_freq}
 
             for ch_idx, (channel, spikes) in enumerate(active_channels.items()):
@@ -145,82 +152,102 @@ class GlobalPlots:
         window_duration_us = max(self.stop_timestamps) - min(self.start_timestamps)
         num_samples = int(window_duration_us / self.sampling_interval_us)
 
-        for freq in self.unique_frequencies:
-            summed_fts = None
-            num_channels = len(self.filtered_spike_timestamps[freq])
-            fig, ax = plt.subplots(figsize=(12, 8))
+        # Open the CSV file in append mode
+        with open(self.global_output_path, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
 
-            for channel_id, spikes in self.filtered_spike_timestamps[freq].items():
-                if len(spikes) == 0:
-                    continue
+            # Initialize a dictionary to hold peak amplitudes for each frequency
+            peak_amplitudes_by_frequency = {freq: [] for freq in self.unique_frequencies}
 
-                # Create the spike train with the exact number of samples
-                spike_train = np.zeros(num_samples, dtype=np.float32)
-                # Align the spikes to the start of the window
-                spike_indices = ((np.array(spikes) - min(self.start_timestamps)) / self.sampling_interval_us).astype(int)
-                spike_indices = spike_indices[(spike_indices >= 0) & (spike_indices < num_samples)]
-                spike_train[spike_indices] = 1
-
-                freqs, fts = fourier.compute_fourier(spike_train, self.sampling_rate)
-                freq_mask = freqs <= 50
-                limited_freqs = freqs[freq_mask]
-                limited_fts = fts[freq_mask]
-
-                plt.plot(limited_freqs, limited_fts, alpha=0.5)
-
-                if summed_fts is None:
-                    summed_fts = limited_fts
-                else:
-                    summed_fts += limited_fts
-
-            ax.set_xlim(0, 50)
-            ax.set_xlabel('Frequency (Hz)')
-            ax.set_ylabel('Amplitude')
-            ax.set_title(f'Fourier Transform for Frequency {freq} Hz (All Channels)')
-            self.figs.append(fig)
-            plt.close(fig)
-
-            # Plot the averaged FFT
-            if summed_fts is not None:
-                average_fts = summed_fts / num_channels
-
-                if freq == 30:
-                    self.freq_range = 2
-                else:
-                    self.freq_range = self.freq_range
-
-                # Find the maximum amplitude
-                indices_in_range = np.where((limited_freqs >= freq - self.freq_range) & (limited_freqs <= freq + self.freq_range))[0]
-                if indices_in_range.size > 0:
-                    amplitudes_in_range = average_fts[indices_in_range]
-                    peak_amplitude = np.max(amplitudes_in_range)
-                else:
-                    peak_amplitude = 0
-
-                self.power.append(peak_amplitude)
-                print(f"The maximum amplitude within the range {freq - self.freq_range} to {freq + self.freq_range} Hz for the stimulus frequency {freq} Hz is {peak_amplitude}")
-
+            for freq in self.unique_frequencies:
+                summed_fts = None
+                num_channels = len(self.filtered_spike_timestamps[freq])
                 fig, ax = plt.subplots(figsize=(12, 8))
-                ax.plot(limited_freqs, average_fts)
+
+                for channel_id, spikes in self.filtered_spike_timestamps[freq].items():
+                    # Only process channels with significant spikes
+                    if len(spikes) < 50:
+                        continue
+
+                    # Create the spike train with the exact number of samples
+                    spike_train = np.zeros(num_samples, dtype=np.float32)
+                    spike_indices = ((np.array(spikes) - min(self.start_timestamps)) / self.sampling_interval_us).astype(int)
+                    spike_indices = spike_indices[(spike_indices >= 0) & (spike_indices < num_samples)]
+                    spike_train[spike_indices] = 1
+
+                    freqs, fts = fourier.compute_fourier(spike_train, self.sampling_rate)
+                    freq_mask = freqs <= 50
+                    limited_freqs = freqs[freq_mask]
+                    limited_fts = fts[freq_mask]
+
+                    plt.plot(limited_freqs, limited_fts, alpha=0.5)
+
+                    if summed_fts is None:
+                        summed_fts = limited_fts
+                    else:
+                        summed_fts += limited_fts
+
+                    # Calculate peak amplitude for the frequency range
+                    if freq == 30:
+                        self.freq_range = 2
+                    indices_in_range = np.where((limited_freqs >= freq - self.freq_range) & (limited_freqs <= freq + self.freq_range))[0]
+
+                    if indices_in_range.size > 0:
+                        amplitudes_in_range = limited_fts[indices_in_range]
+                        peak_amplitude = np.max(amplitudes_in_range)
+                    else:
+                        peak_amplitude = 0
+
+                    # Append the peak amplitude to the CSV
+                    writer.writerow([self.experiment, channel_id, self.group, self.light_level, freq, peak_amplitude])
+
+                    # Collect peak amplitude for averaging
+                    peak_amplitudes_by_frequency[freq].append(peak_amplitude)
+
                 ax.set_xlim(0, 50)
                 ax.set_xlabel('Frequency (Hz)')
                 ax.set_ylabel('Amplitude')
-                ax.set_title(f'Averaged Fourier Transform for Stimulus Frequency {freq} Hz')
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
+                ax.set_title(f'Fourier Transform for Frequency {freq} Hz (All Channels)')
                 self.figs.append(fig)
-                plt.show()
                 plt.close(fig)
-                
+
+                # Plot the averaged FFT
+                if summed_fts is not None:
+                    average_fts = summed_fts / num_channels
+
+                    fig, ax = plt.subplots(figsize=(12, 8))
+                    ax.plot(limited_freqs, average_fts)
+                    ax.set_xlim(0, 50)
+                    ax.set_xlabel('Frequency (Hz)')
+                    ax.set_ylabel('Amplitude')
+                    ax.set_title(f'Averaged Fourier Transform for Stimulus Frequency {freq} Hz')
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    self.figs.append(fig)
+                    plt.close(fig)
+
+            # Calculate average peak amplitudes and standard deviations for each frequency
+            self.average_peak_amplitudes = []
+            self.std_peak_amplitudes = []
+
+            for freq in self.unique_frequencies:
+                amplitudes = peak_amplitudes_by_frequency[freq]
+                average_peak = np.mean(amplitudes) if amplitudes else 0
+                std_peak = np.std(amplitudes) if amplitudes else 0
+
+                self.average_peak_amplitudes.append(average_peak)
+                self.std_peak_amplitudes.append(std_peak)
+
     def plot_power(self):
+
         fig, ax = plt.subplots(figsize=(7, 4))
-        ax.scatter(self.unique_frequencies, self.power, color='darkblue')
+        ax.errorbar(self.unique_frequencies, self.average_peak_amplitudes, yerr=self.std_peak_amplitudes, fmt='o', color='darkblue', ecolor='lightgray', elinewidth=2, capsize=3)
         ax.set_xlabel('Frequency (Hz)')
         ax.set_ylabel('Amplitude')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.set_title('Power Plot with Error Bars (Average of Channels)')
         ax.set_ylim(bottom=0)
-        ax.set_title('power plot')
         self.figs.append(fig)
         plt.close(fig)
 
@@ -290,8 +317,8 @@ class GlobalPlots:
         baseline_rate_mean = np.mean(self.baseline_rates_per_channel)
         stimulus_rates_means = [np.mean(self.firing_rates_per_channel[freq]) for freq in self.unique_frequencies]
         csv_data = [['Baseline', baseline_rate_mean, None]]
-        for freq, rate, power in zip(self.unique_frequencies, stimulus_rates_means, self.power):
-            csv_data.append([f'{freq} Hz', rate, power])
+        for freq, rate, power, std in zip(self.unique_frequencies, stimulus_rates_means, self.average_peak_amplitudes, self.std_peak_amplitudes):
+            csv_data.append([f'{freq} Hz', rate, power, std])
         files.create_csv(csv_data, csv_file_path)
 
     def save_pdf_report(self):

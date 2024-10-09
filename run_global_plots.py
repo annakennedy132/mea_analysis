@@ -3,7 +3,11 @@ from classes.global_plots import GlobalPlots
 def run():
 
     file_path = input("Input file path: ")
-    gp = GlobalPlots(file_path)
+    experiment = input("Input experiment ID: ")
+    group = input("input experiment group: ")
+    light_level = input("Input light level: ")
+
+    gp = GlobalPlots(file_path, experiment, group, light_level)
     gp.get_timestamps()
     gp.plot_raster()
     gp.plot_fourier()
